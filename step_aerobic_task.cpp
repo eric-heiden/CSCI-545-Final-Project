@@ -78,7 +78,7 @@ public:
 
     bool hasFinished() const
     {
-        return _time <= _tau;
+        return _time > _tau;
     }
 
     void execute()
