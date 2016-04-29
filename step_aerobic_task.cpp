@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 
 // system headers
 #include "SL_system_headers.h"
@@ -18,9 +19,9 @@
 #define SIMULATION 1
 
 #if SIMULATION
-#define SIM_LOG(message) std::cout << message << std::endl;
+#define SIM_LOG(message) do { std::cout << message << std::endl; } while (false)
 #else
-#define SIM_LOG(message)
+#define SIM_LOG(message) do {} while (false)
 #endif
 
 // making it easier to copy them
@@ -60,7 +61,95 @@ static Matrix fc;
 static Vector delta_x;
 static Vector delta_th;
 
+typedef void *(FunctionPtr)(void);
+
+/**
+ * @brief Abstracts a step which first assigns a target and makes the required movements.
+ */
+class Step
+{
+public:
+    Step(std::string name, FunctionPtr &assign, FunctionPtr &move, double tau = duration)
+        : name(name), _tau(tau), _assigned(false), _time(0)
+    {
+        _assign = &assign;
+        _move = &move;
+    }
+
+    bool hasFinished() const
+    {
+        return _time <= _tau;
+    }
+
+    void execute()
+    {
+        if (!_assigned)
+        {
+            _assign();
+            _assigned = true;
+        }
+        else
+        {
+            _move();
+            _time += delta_t;
+        }
+    }
+
+    std::string name;
+
+    FunctionPtr *_assign;
+    FunctionPtr *_move;
+
+private:
+    double _tau;
+    double _time;
+    bool _assigned;
+};
+
+/**
+ * @brief Executes a sequence of steps.
+ */
+class StepSequence
+{
+public:
+    StepSequence()
+    {
+        _active = _steps.begin();
+    }
+
+    void add(const Step &step)
+    {
+        _steps.push_back(step);
+    }
+
+    void execute()
+    {
+        if (_active >= _steps.end())
+            return;
+
+        if (_active->hasFinished())
+        {
+            ++_active;
+            if (_active != _steps.end())
+            {
+                SIM_LOG("Executing step " << _active->name);
+            }
+            else
+            {
+                SIM_LOG("Finished execution");
+            }
+        }
+
+        _active->execute();
+    }
+
+private:
+    std::vector<Step> _steps;
+    std::vector<Step>::iterator _active;
+};
+
 // state machine
+static StepSequence sequence;
 enum Steps {
   RELAX_DYNAMICS,
 
@@ -107,7 +196,7 @@ static Steps which_step;
 #define STEP_STATE_MACHINE(next_state, next_dur) { \
     time_to_go -= delta_t; \
     if (time_to_go <= 0) { \
-        SIM_LOG(#next_state) \
+        SIM_LOG(#next_state); \
         which_step = next_state; \
         time_to_go = (next_dur); \
     } \
@@ -247,6 +336,7 @@ init_step_aerobic_task(void)
 static int
 run_step_aerobic_task(void)
 {
+    sequence.execute();
   int i, j;
 
   // switch according to the current state of the state machine
