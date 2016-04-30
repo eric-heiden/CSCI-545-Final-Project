@@ -33,32 +33,26 @@ struct Joints
             joints[i] = states[i];
         }
     }
-    Joints mirrored() const
-    {
-        int right_to_left = L_SFE - R_SFE;
-        int joints_to_mirror[] = {
-            R_SAA, R_SFE, R_EB, R_HR, R_WR, R_FING, R_FB, R_HFE, R_HAA, R_KFE, R_AFE, R_AAA
-        };
-        Joints j = *this;
-        for (int i = 0; i < 12; ++i) {
-            // left to right
-            j.joints[joints_to_mirror[i]] = joints[joints_to_mirror[i] + right_to_left];
-            // right to left
-            j.joints[joints_to_mirror[i] + right_to_left] = joints[joints_to_mirror[i]];
-        }
-        return j;
-    }
 };
 
 // local variables
 static Joints target;
 static Joints pose_default;
+
 static Joints pose_cog_right;
+static Joints pose_cog_middle;
+static Joints pose_cog_left;
+
 static Joints pose_left_up;
-static Joints pose_left_forward;
-static Joints pose_left_down;
+static Joints pose_right_up;
+
+static bool cog_right_init = false;
+static bool cog_left_init = false;
+
+//static Joints pose_left_forward;
+//static Joints pose_left_down;
 static double      delta_t = 0.01;
-static double      duration = 20.0;
+static double      duration = 7.0;
 static double      time_to_go = 0.0;
 
 // variables for COG control
@@ -75,9 +69,18 @@ static Vector delta_th;
 // state machine
 enum Steps {
   RELAX_DYNAMICS,
+
   CROUCH,
+
+  ASSIGN_RAISE_RIGHT_ARM,
+  MOVE_RAISE_RIGHT_ARM,
+
   ASSIGN_COG_RIGHT,
   MOVE_COG_RIGHT,
+
+  ASSIGN_RAISE_LEFT_ARM,
+  MOVE_RAISE_LEFT_ARM,
+
   ASSIGN_COG_LEFT,
   MOVE_COG_LEFT,
 };
@@ -87,7 +90,7 @@ static Steps which_step;
 // (it's a macro so we can easily use the # operator to stringify the enum)
 #define STEP_STATE_MACHINE(next_state, next_dur) { \
     time_to_go -= delta_t; \
-    if (time_to_go <= 0) { \
+    if (time_to_go <= delta_t/2) { \
         SIM_LOG(#next_state) \
         which_step = next_state; \
         time_to_go = (next_dur); \
@@ -111,6 +114,28 @@ static void step_min_jerk_jointspace()
             time_to_go, delta_t,
             &joint.th, &joint.thd, &joint.thdd
         );
+    }
+}
+
+static void set_ik_target(int foot)
+{
+    // set target to move center of gravity over right foot
+    for (int i=_X_; i <= _Z_; ++i) {
+        cog_target.x[i] = cart_des_state[foot].x[i];
+    }
+    cog_target.x[_Y_] += 0.01;
+    cog_target.x[_X_] *= 0.7;
+
+    // the structure cog_des has the current position of the COG computed from the
+    // joint_des_state of the robot. cog_des should track cog_traj
+    for (int i=1; i<=N_CART; ++i) {
+      cog_traj.x[i] = cog_des.x[i];
+    }
+
+    // `stat` tells the COG IK function that the feet are planted on the ground
+    for (int i=1; i<=6; ++i) {
+      stat[RIGHT_FOOT][i] = TRUE;
+      stat[LEFT_FOOT][i] = TRUE;
     }
 }
 
@@ -176,16 +201,10 @@ init_shift_task(void)
   pose_default.copyFrom(joint_default_state);
 
   target = pose_default;
-  //raise_arm_target(Right);
   // crouch
-  //target.joints[R_HFE].th = target.joints[L_HFE].th = 0.30;
-  //target.joints[R_KFE].th = target.joints[L_KFE].th = 0.50;
-  //target.joints[R_AFE].th = target.joints[L_AFE].th = 0.25;
-
-
-  //target.joints[R_HFE].th = target.joints[L_HFE].th = 0.5;
-  //target.joints[R_KFE].th = target.joints[L_KFE].th = 1.00;
-  //target.joints[R_AFE].th = target.joints[L_AFE].th = 0.55;
+  target.joints[R_HFE].th = target.joints[L_HFE].th = 0.50;
+  target.joints[R_KFE].th = target.joints[L_KFE].th = 1.00;
+  target.joints[R_AFE].th = target.joints[L_AFE].th = 0.50;
 
   static int firsttime = TRUE;
   if (firsttime){
@@ -200,57 +219,13 @@ init_shift_task(void)
 
     // move to default position
     go_target_wait_ID(joint_default_state);
-    STEP_STATE_MACHINE(CROUCH, duration);
+    STEP_STATE_MACHINE(CROUCH, duration * 2);
   }
   else {
-    STEP_STATE_MACHINE(CROUCH, duration);
+    STEP_STATE_MACHINE(CROUCH, duration * 2);
   }
 
   return TRUE;
-}
-
-static void set_ik_target(int foot)
-{
-    static bool init = true;
-    static SL_Cstate left_pos;
-    static SL_Cstate right_pos;
-    if (init) {
-        left_pos = cart_des_state[LEFT_FOOT];
-        right_pos = cart_des_state[RIGHT_FOOT];
-        init = false;
-    }
-    switch (foot) {
-    case LEFT_FOOT:
-        cog_target = left_pos;
-        break;
-    case RIGHT_FOOT:
-        cog_target = right_pos;
-        break;
-    default:
-        return;
-    }
-
-    //cog_target.x[_X_] *= 0.5;
-    //cog_target.x[_Y_] += 0.01;
-
-    // set target to move center of gravity over right foot
-    //for (int i=_X_; i <= _Z_; ++i) {
-    //    cog_target.x[i] = cart_state[foot].x[i];
-    //}
-    cog_target.x[_X_] *= 0.65;
-    cog_target.x[_Y_] += 0.00;
-
-    // the structure cog_des has the current position of the COG computed from the
-    // joint_des_state of the robot. cog_des should track cog_traj
-    for (int i=1; i<=N_CART; ++i) {
-      cog_traj.x[i] = cog_des.x[i];
-    }
-
-    // `stat` tells the COG IK function that the feet are planted on the ground
-    for (int i=1; i<=6; ++i) {
-      stat[RIGHT_FOOT][i] = TRUE;
-      stat[LEFT_FOOT][i] = TRUE;
-    }
 }
 
 static int
@@ -264,33 +239,78 @@ run_shift_task(void)
   case RELAX_DYNAMICS:
     // in simulation, the moment you start calling SL_InvDynNE, the dynamics start oscillating like crazy.
     // we need a state that just waits for everything to calm down before proceeding.
-    STEP_STATE_MACHINE(CROUCH, duration);
+    STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
     break;
 
   case CROUCH:
-    step_min_jerk_jointspace();
-    STEP_STATE_MACHINE(ASSIGN_COG_RIGHT, 0.0);
-    break;
+      step_min_jerk_jointspace();
+      STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
+      break;
+
+  case ASSIGN_RAISE_RIGHT_ARM:
+      pose_cog_middle = target;
+      lower_arm_target(Left);
+      raise_arm_target(Right);
+      STEP_STATE_MACHINE(MOVE_RAISE_RIGHT_ARM, duration/2);
+      break;
+
+  case MOVE_RAISE_RIGHT_ARM:
+      step_min_jerk_jointspace();
+      STEP_STATE_MACHINE(ASSIGN_COG_RIGHT, 0);
+      break;
+
 
   case ASSIGN_COG_RIGHT:
-    set_ik_target(RIGHT_FOOT);
-    STEP_STATE_MACHINE(MOVE_COG_RIGHT, duration);
-    break;
+      if (!cog_right_init) {
+          set_ik_target(RIGHT_FOOT);
+      }
+      else {
+          target = pose_cog_right;
+      }
+      STEP_STATE_MACHINE(MOVE_COG_RIGHT, duration);
+      break;
 
   case MOVE_COG_RIGHT:
-    step_cog_ik();
-    STEP_STATE_MACHINE(ASSIGN_COG_LEFT, 0.0)
+      if (!cog_right_init) {
+          step_cog_ik();
+      }
+      else {
+          step_min_jerk_jointspace();
+      }
+      STEP_STATE_MACHINE(ASSIGN_RAISE_LEFT_ARM, 0);
+      break;
+
+  case ASSIGN_RAISE_LEFT_ARM:
+    lower_arm_target(Right);
+    raise_arm_target(Left);
+    STEP_STATE_MACHINE(MOVE_RAISE_LEFT_ARM, duration/2);
     break;
+
+  case MOVE_RAISE_LEFT_ARM:
+    step_min_jerk_jointspace();
+    STEP_STATE_MACHINE(ASSIGN_COG_LEFT, 0);
+      break;
+
 
   case ASSIGN_COG_LEFT:
-    set_ik_target(LEFT_FOOT);
-    STEP_STATE_MACHINE(MOVE_COG_LEFT, duration);
-    break;
+      if (!cog_left_init) {
+          set_ik_target(LEFT_FOOT);
+      }
+      else {
+          target = pose_cog_left;
+      }
+      STEP_STATE_MACHINE(MOVE_COG_LEFT, duration);
+      break;
 
   case MOVE_COG_LEFT:
-    step_cog_ik();
-    STEP_STATE_MACHINE(ASSIGN_COG_RIGHT, 0.0)
-    break;
+      if (!cog_left_init) {
+          step_cog_ik();
+      }
+      else {
+          step_min_jerk_jointspace();
+      }
+      STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
+      break;
   }
 
   // this is the "normal" inverse dynamics used for drawing, etc.

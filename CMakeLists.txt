@@ -25,9 +25,9 @@ include($ENV{LAB_ROOT}/config/cmake/LAB.cmake)
 # user defined cmake components
 
 # set global compile type
-#set(CMAKE_BUILD_TYPE RelWithDebInfo) # Optimization with debugging info
+set(CMAKE_BUILD_TYPE RelWithDebInfo) # Optimization with debugging info
 #set(CMAKE_BUILD_TYPE Release)       # Optimization 
-set(CMAKE_BUILD_TYPE Debug)         # Debug
+#set(CMAKE_BUILD_TYPE Debug)         # Debug
 
 # the robot name
 set(NAME "nao")
@@ -45,7 +45,8 @@ set(SRCS_XTASK
 	initUserTasks.c
 	sample_task.c 
 	sample_task_cpp.cpp
-	balance_task.cpp
+	min_jerk_task.cpp
+        balance_task.cpp
 	shift_task.cpp
 	step_aerobic_task.cpp
 	)
@@ -82,11 +83,10 @@ target_link_libraries(xopengl SLopenGL SLcommon ${NAME}_openGL ${NAME} utility $
 add_executable(xsimulation ${SRCS_XSIM})
 target_link_libraries(xsimulation  SLsimulation SLcommon ${NAME}_simulation ${NAME} utility ${LAB_STD_LIBS})
 
-if($ENV{HOST} MATCHES ${SARCOS_MASTER_HOST})
 
-  install(PROGRAMS ${RBINARIES} DESTINATION ${CMAKE_BINARY_DIR})
 
-  add_executable(xrtask ${SRCS_XTASK})
-  target_link_libraries(xrtask SLtask SLcommon r${NAME}_task ${NAME} utility ${LAB_STD_LIBS})
+install(PROGRAMS ${RBINARIES} DESTINATION ${CMAKE_BINARY_DIR})
 
-endif()
+add_executable(xrtask ${SRCS_XTASK})
+target_link_libraries(xrtask SLtask SLcommon r${NAME}_task ${NAME} utility ${LAB_STD_LIBS})
+
