@@ -46,9 +46,6 @@ static Joints pose_cog_left;
 static Joints pose_left_up;
 static Joints pose_right_up;
 
-static bool cog_right_init = false;
-static bool cog_left_init = false;
-
 //static Joints pose_left_forward;
 //static Joints pose_left_down;
 static double      delta_t = 0.01;
@@ -68,8 +65,6 @@ static Vector delta_th;
 
 // state machine
 enum Steps {
-  RELAX_DYNAMICS,
-
   CROUCH,
 
   ASSIGN_RAISE_RIGHT_ARM,
@@ -83,6 +78,14 @@ enum Steps {
 
   ASSIGN_COG_LEFT,
   MOVE_COG_LEFT,
+
+  SAVE_COG_LEFT,
+
+  ASSIGN_COG_RIGHT_JOINTS,
+  MOVE_COG_RIGHT_JOINTS,
+
+  ASSIGN_COG_LEFT_JOINTS,
+  MOVE_COG_LEFT_JOINTS,
 };
 static Steps which_step;
 
@@ -205,6 +208,7 @@ init_shift_task(void)
   target.joints[R_HFE].th = target.joints[L_HFE].th = 0.50;
   target.joints[R_KFE].th = target.joints[L_KFE].th = 1.00;
   target.joints[R_AFE].th = target.joints[L_AFE].th = 0.50;
+  pose_cog_middle = target;
 
   static int firsttime = TRUE;
   if (firsttime){
@@ -236,19 +240,12 @@ run_shift_task(void)
   // switch according to the current state of the state machine
   switch (which_step) {
 
-  case RELAX_DYNAMICS:
-    // in simulation, the moment you start calling SL_InvDynNE, the dynamics start oscillating like crazy.
-    // we need a state that just waits for everything to calm down before proceeding.
-    STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
-    break;
-
   case CROUCH:
       step_min_jerk_jointspace();
       STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
       break;
 
   case ASSIGN_RAISE_RIGHT_ARM:
-      pose_cog_middle = target;
       lower_arm_target(Left);
       raise_arm_target(Right);
       STEP_STATE_MACHINE(MOVE_RAISE_RIGHT_ARM, duration/2);
@@ -261,26 +258,18 @@ run_shift_task(void)
 
 
   case ASSIGN_COG_RIGHT:
-      if (!cog_right_init) {
-          set_ik_target(RIGHT_FOOT);
-      }
-      else {
-          target = pose_cog_right;
-      }
+      set_ik_target(RIGHT_FOOT);
       STEP_STATE_MACHINE(MOVE_COG_RIGHT, duration);
       break;
 
   case MOVE_COG_RIGHT:
-      if (!cog_right_init) {
-          step_cog_ik();
-      }
-      else {
-          step_min_jerk_jointspace();
-      }
+      step_cog_ik();
       STEP_STATE_MACHINE(ASSIGN_RAISE_LEFT_ARM, 0);
       break;
 
   case ASSIGN_RAISE_LEFT_ARM:
+    pose_cog_right.copyFrom(joint_des_state);
+    target = pose_cog_right;
     lower_arm_target(Right);
     raise_arm_target(Left);
     STEP_STATE_MACHINE(MOVE_RAISE_LEFT_ARM, duration/2);
@@ -293,23 +282,38 @@ run_shift_task(void)
 
 
   case ASSIGN_COG_LEFT:
-      if (!cog_left_init) {
-          set_ik_target(LEFT_FOOT);
-      }
-      else {
-          target = pose_cog_left;
-      }
+      set_ik_target(LEFT_FOOT);
       STEP_STATE_MACHINE(MOVE_COG_LEFT, duration);
       break;
 
   case MOVE_COG_LEFT:
-      if (!cog_left_init) {
-          step_cog_ik();
-      }
-      else {
-          step_min_jerk_jointspace();
-      }
-      STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
+      step_cog_ik();
+      STEP_STATE_MACHINE(SAVE_COG_LEFT, 0);
+      break;
+
+  case SAVE_COG_LEFT:
+      pose_cog_left.copyFrom(joint_des_state);
+      STEP_STATE_MACHINE(ASSIGN_COG_RIGHT_JOINTS, 0);
+      break;
+
+  case ASSIGN_COG_RIGHT_JOINTS:
+      target = pose_cog_right;
+      STEP_STATE_MACHINE(MOVE_COG_RIGHT_JOINTS, duration);
+      break;
+
+  case MOVE_COG_RIGHT_JOINTS:
+      step_min_jerk_jointspace();
+      STEP_STATE_MACHINE(ASSIGN_COG_LEFT_JOINTS, 0);
+      break;
+
+  case ASSIGN_COG_LEFT_JOINTS:
+      target = pose_cog_left;
+      STEP_STATE_MACHINE(MOVE_COG_LEFT_JOINTS, duration);
+      break;
+
+  case MOVE_COG_LEFT_JOINTS:
+      step_min_jerk_jointspace();
+      STEP_STATE_MACHINE(ASSIGN_COG_RIGHT_JOINTS, 0);
       break;
   }
 
