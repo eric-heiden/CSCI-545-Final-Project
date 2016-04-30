@@ -15,13 +15,15 @@
 #include "SL_man.h"
 
 #define ENDEFF_IK 0
-#define SIMULATION 0
+#define SIMULATION 1
 
 #if SIMULATION
-#define SIM_LOG(message) std::cout << message << std::endl;
+#define SIM_LOG(message) do { std::cout << message << std::endl; } while (false)
 #else
-#define SIM_LOG(message)
+#define SIM_LOG(message) do {} while (false)
 #endif
+
+#include "stepsequence.hpp"
 
 // making it easier to copy them
 struct Joints
@@ -52,6 +54,7 @@ static double      delta_t = 0.01;
 static double      duration = 7.0;
 static double      time_to_go = 0.0;
 
+
 // variables for COG control
 static SL_Cstate cog_target;
 static SL_Cstate cog_traj;
@@ -63,42 +66,7 @@ static Matrix fc;
 static Vector delta_x;
 static Vector delta_th;
 
-// state machine
-enum Steps {
-  CROUCH,
-
-  ASSIGN_RAISE_RIGHT_ARM,
-  MOVE_RAISE_RIGHT_ARM,
-
-  ASSIGN_COG_RIGHT,
-  MOVE_COG_RIGHT,
-
-  ASSIGN_RAISE_LEFT_ARM,
-  MOVE_RAISE_LEFT_ARM,
-
-  ASSIGN_COG_LEFT,
-  MOVE_COG_LEFT,
-
-  SAVE_COG_LEFT,
-
-  ASSIGN_COG_RIGHT_JOINTS,
-  MOVE_COG_RIGHT_JOINTS,
-
-  ASSIGN_COG_LEFT_JOINTS,
-  MOVE_COG_LEFT_JOINTS,
-};
-static Steps which_step;
-
-// macro to decrement time_to_go and transition to next state if ready
-// (it's a macro so we can easily use the # operator to stringify the enum)
-#define STEP_STATE_MACHINE(next_state, next_dur) { \
-    time_to_go -= delta_t; \
-    if (time_to_go <= delta_t/2) { \
-        SIM_LOG(#next_state) \
-        which_step = next_state; \
-        time_to_go = (next_dur); \
-    } \
-}
+static StepSequence sequence;
 
 // compute min-jerk increment for a scalar value
 static int min_jerk_next_step (double x, double xd, double xdd,
@@ -107,7 +75,7 @@ static int min_jerk_next_step (double x, double xd, double xdd,
             double *x_next, double *xd_next, double *xdd_next);
 
 // compute min-jerk increment of entire joint space
-static void step_min_jerk_jointspace()
+static void step_min_jerk_jointspace(double time_to_go)
 {
     for (int i = 1; i <= N_DOFS; ++i) {
         SL_DJstate &joint = joint_des_state[i];
@@ -132,22 +100,23 @@ static void set_ik_target(int foot)
     // the structure cog_des has the current position of the COG computed from the
     // joint_des_state of the robot. cog_des should track cog_traj
     for (int i=1; i<=N_CART; ++i) {
-      cog_traj.x[i] = cog_des.x[i];
+        cog_traj.x[i] = cog_des.x[i];
     }
 
     // `stat` tells the COG IK function that the feet are planted on the ground
     for (int i=1; i<=6; ++i) {
-      stat[RIGHT_FOOT][i] = TRUE;
-      stat[LEFT_FOOT][i] = TRUE;
+        stat[RIGHT_FOOT][i] = TRUE;
+        stat[LEFT_FOOT][i] = TRUE;
     }
 }
 
-static void step_cog_ik()
+static void step_cog_ik(double time_to_go)
 {
     double const kp = 0.1;
 
     // plan the next step of cog movement with min jerk
-    for (int i=1; i<=N_CART; ++i) {
+    for (int i=1; i<=N_CART; ++i)
+    {
       min_jerk_next_step(
         cog_traj.x[i], cog_traj.xd[i], cog_traj.xdd[i],
         cog_target.x[i], cog_target.xd[i], cog_target.xdd[i],
@@ -155,8 +124,9 @@ static void step_cog_ik()
         &(cog_traj.x[i]), &(cog_traj.xd[i]), &(cog_traj.xdd[i]));
     }
 
-    // inverse kinematics: we use a P controller to correct for tracking erros
-    for (int i=1; i<=N_CART; ++i) {
+    // inverse kinematics: we use a P controller to correct for tracking errors
+    for (int i=1; i<=N_CART; ++i)
+    {
       cog_ref.xd[i] = kp*(cog_traj.x[i] - cog_des.x[i]) + cog_traj.xd[i];
       delta_x[i] = cog_ref.xd[i];
     }
@@ -168,11 +138,12 @@ static void step_cog_ik()
     mat_vec_mult(Jccogp, delta_x, delta_th);
 
     // compute the joint_des_state[i].th and joint_des_state[i].thd
-    for (int i=1; i<=N_DOFS; ++i) {
-      joint_des_state[i].th += delta_t * delta_th[i];
-      joint_des_state[i].thd = delta_th[i];
-      joint_des_state[i].thdd = 0;
-      joint_des_state[i].uff  = 0;
+    for (int i=1; i<=N_DOFS; ++i)
+    {
+        joint_des_state[i].th += delta_t * delta_th[i];
+        joint_des_state[i].thd = delta_th[i];
+        joint_des_state[i].thdd = 0;
+        joint_des_state[i].uff  = 0;
     }
 }
 
@@ -196,148 +167,122 @@ static void lower_arm_target(Side side)
     target.joints[R_HR + shift].th  = joint_default_state[R_HR + shift].th;
 }
 
-// allocate memory, etc. called once when task starts.
-static int
-init_shift_task(void)
+void crouch()
 {
-  // copy the default pose into our struct to make it copyable
-  pose_default.copyFrom(joint_default_state);
+    // copy the default pose into our struct to make it copyable
+    pose_default.copyFrom(joint_default_state);
 
-  target = pose_default;
-  // crouch
-  target.joints[R_HFE].th = target.joints[L_HFE].th = 0.50;
-  target.joints[R_KFE].th = target.joints[L_KFE].th = 1.00;
-  target.joints[R_AFE].th = target.joints[L_AFE].th = 0.50;
-  pose_cog_middle = target;
-
-  static int firsttime = TRUE;
-  if (firsttime){
-    firsttime = FALSE;
-
-    stat     = my_imatrix(1,N_ENDEFFS,1,2*N_CART);
-    Jccogp   = my_matrix(1,N_DOFS,1,N_CART);
-    NJccog   = my_matrix(1,N_DOFS,1,N_DOFS+2*N_CART);
-    fc       = my_matrix(1,N_ENDEFFS,1,2*N_CART);
-    delta_x  = my_vector(1, N_CART); // desired velocity of COG in Cartesian space
-    delta_th = my_vector(1, N_DOFS); // joint state velocity for COG IK
-
-    // move to default position
-    go_target_wait_ID(joint_default_state);
-    STEP_STATE_MACHINE(CROUCH, duration * 2);
-  }
-  else {
-    STEP_STATE_MACHINE(CROUCH, duration * 2);
-  }
-
-  return TRUE;
+    target = pose_default;
+    // crouch
+    target.joints[R_HFE].th = target.joints[L_HFE].th = 0.50;
+    target.joints[R_KFE].th = target.joints[L_KFE].th = 1.00;
+    target.joints[R_AFE].th = target.joints[L_AFE].th = 0.50;
+    pose_cog_middle = target;
 }
 
-static int
-run_shift_task(void)
+void raiseRightArm()
 {
-  int i, j;
+    lower_arm_target(Left);
+    raise_arm_target(Right);
+}
 
-  // switch according to the current state of the state machine
-  switch (which_step) {
+void cogRight()
+{
+    set_ik_target(RIGHT_FOOT);
+}
 
-  case CROUCH:
-      step_min_jerk_jointspace();
-      STEP_STATE_MACHINE(ASSIGN_RAISE_RIGHT_ARM, 0);
-      break;
+void cogLeft()
+{
+    set_ik_target(LEFT_FOOT);
+}
 
-  case ASSIGN_RAISE_RIGHT_ARM:
-      lower_arm_target(Left);
-      raise_arm_target(Right);
-      STEP_STATE_MACHINE(MOVE_RAISE_RIGHT_ARM, duration/2);
-      break;
-
-  case MOVE_RAISE_RIGHT_ARM:
-      step_min_jerk_jointspace();
-      STEP_STATE_MACHINE(ASSIGN_COG_RIGHT, 0);
-      break;
-
-
-  case ASSIGN_COG_RIGHT:
-      set_ik_target(RIGHT_FOOT);
-      STEP_STATE_MACHINE(MOVE_COG_RIGHT, duration);
-      break;
-
-  case MOVE_COG_RIGHT:
-      step_cog_ik();
-      STEP_STATE_MACHINE(ASSIGN_RAISE_LEFT_ARM, 0);
-      break;
-
-  case ASSIGN_RAISE_LEFT_ARM:
+void raiseLeftArm()
+{
     pose_cog_right.copyFrom(joint_des_state);
     target = pose_cog_right;
     lower_arm_target(Right);
     raise_arm_target(Left);
-    STEP_STATE_MACHINE(MOVE_RAISE_LEFT_ARM, duration/2);
-    break;
+}
 
-  case MOVE_RAISE_LEFT_ARM:
-    step_min_jerk_jointspace();
-    STEP_STATE_MACHINE(ASSIGN_COG_LEFT, 0);
-      break;
+void jointCogRight()
+{
+    static bool firstRun = true;
+    if (firstRun)
+    {
+        firstRun = false;
+        // save current left COG state
+        pose_cog_left.copyFrom(joint_des_state);
+    }
 
+    target = pose_cog_right;
+}
 
-  case ASSIGN_COG_LEFT:
-      set_ik_target(LEFT_FOOT);
-      STEP_STATE_MACHINE(MOVE_COG_LEFT, duration);
-      break;
+void jointCogLeft()
+{
+    target = pose_cog_left;
+}
 
-  case MOVE_COG_LEFT:
-      step_cog_ik();
-      STEP_STATE_MACHINE(SAVE_COG_LEFT, 0);
-      break;
+// allocate memory, etc. called once when task starts.
+static int init_shift_task(void)
+{
+    static bool firsttime = true;
+    if (firsttime)
+    {
+        firsttime = false;
 
-  case SAVE_COG_LEFT:
-      pose_cog_left.copyFrom(joint_des_state);
-      STEP_STATE_MACHINE(ASSIGN_COG_RIGHT_JOINTS, 0);
-      break;
+        stat     = my_imatrix(1,N_ENDEFFS,1,2*N_CART);
+        Jccogp   = my_matrix(1,N_DOFS,1,N_CART);
+        NJccog   = my_matrix(1,N_DOFS,1,N_DOFS+2*N_CART);
+        fc       = my_matrix(1,N_ENDEFFS,1,2*N_CART);
+        delta_x  = my_vector(1, N_CART); // desired velocity of COG in Cartesian space
+        delta_th = my_vector(1, N_DOFS); // joint state velocity for COG IK
 
-  case ASSIGN_COG_RIGHT_JOINTS:
-      target = pose_cog_right;
-      STEP_STATE_MACHINE(MOVE_COG_RIGHT_JOINTS, duration);
-      break;
+        // move to default position
+        go_target_wait_ID(joint_default_state);
+    }
 
-  case MOVE_COG_RIGHT_JOINTS:
-      step_min_jerk_jointspace();
-      STEP_STATE_MACHINE(ASSIGN_COG_LEFT_JOINTS, 0);
-      break;
+    // define steps
+    sequence.add(new Step("Crouch", &crouch, &step_min_jerk_jointspace, duration, delta_t));
+    sequence.add(new Step("Raise Right Arm", &raiseRightArm, &step_min_jerk_jointspace, duration/2, delta_t));
+    sequence.add(new Step("COG Right", &cogRight, &step_cog_ik, duration/2, delta_t));
+    sequence.add(new Step("Raise Left Arm", &raiseLeftArm, &step_min_jerk_jointspace, duration/2, delta_t));
+    sequence.add(new Step("COG Left", &cogLeft, &step_cog_ik, duration/2, delta_t));
 
-  case ASSIGN_COG_LEFT_JOINTS:
-      target = pose_cog_left;
-      STEP_STATE_MACHINE(MOVE_COG_LEFT_JOINTS, duration);
-      break;
+    StepSequence *jointLoop = new StepSequence(true); // cycle
+    jointLoop->add(new Step("Joint COG Right", &jointCogRight, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Joint COG Left", &jointCogLeft, &step_min_jerk_jointspace, duration/2, delta_t));
+    sequence.add(jointLoop);
 
-  case MOVE_COG_LEFT_JOINTS:
-      step_min_jerk_jointspace();
-      STEP_STATE_MACHINE(ASSIGN_COG_RIGHT_JOINTS, 0);
-      break;
-  }
+    sequence.initialize();
 
-  // this is the "normal" inverse dynamics used for drawing, etc.
-  //SL_InvDynNE(joint_state, joint_des_state, endeff, &base_state, &base_orient);
+    return TRUE;
+}
 
-  // this is a special inverse dynamics computation for a free standing robot
-  // BUT... it doesn't seem to work unless both feet are stuck to the ground
-  //inverseDynamicsFloat(delta_t, stat, TRUE, joint_des_state, NULL, NULL, fc);
+static int run_shift_task(void)
+{
+    sequence.execute();
+    return TRUE;
 
-  return TRUE;
+    // this is the "normal" inverse dynamics used for drawing, etc.
+    //SL_InvDynNE(joint_state, joint_des_state, endeff, &base_state, &base_orient);
+
+    // this is a special inverse dynamics computation for a free standing robot
+    // BUT... it doesn't seem to work unless both feet are stuck to the ground
+    //inverseDynamicsFloat(delta_t, stat, TRUE, joint_des_state, NULL, NULL, fc);
+
+    return TRUE;
 }
 
 // it's somehow possible to call this from the console... don't know how yet
-static int 
-change_shift_task(void)
+static int change_shift_task(void)
 {
-  int    ivar = 0; // default value
-  double dvar = 0; // default value
+    int    ivar = 0; // default value
+    double dvar = 0; // default value
 
-  get_int("This is how to enter an integer variable", ivar, &ivar);
-  get_double("This is how to enter a double variable", dvar, &dvar);
+    get_int("This is how to enter an integer variable", ivar, &ivar);
+    get_double("This is how to enter a double variable", dvar, &dvar);
 
-  return TRUE;
+    return TRUE;
 }
 
 /*!*****************************************************************************
@@ -360,29 +305,26 @@ using min jerk splines
  \param[out]          x_next,xd_next,xdd_next : the next state after dt
 
  ******************************************************************************/
-static int 
-min_jerk_next_step (double xt, double dxt, double ddxt, double xf, double dxf, double ddxf,
+static int min_jerk_next_step (double xt, double dxt, double ddxt, double xf, double dxf, double ddxf,
         double togo, double t,
         double *x_next, double *xd_next, double *xdd_next)
 
 {
-  *x_next = 0.5*pow(togo, -5.0)*(2*xt*pow(togo, 5.0) + 2*t*dxt*pow(togo, 5.0) + pow(t, 2.0)*ddxt*pow(togo, 5.0) + pow(t, 3.0)*pow(togo, 2.0)*(20*xf + (-20.0)*xt + togo*((-8.0)*dxf + (-12.0)*dxt + ddxf*togo + (-3.0)*ddxt*togo)) + pow(t, 5.0)*(12*xf + (-12.0)*xt + togo*((-6.0)*dxf + (-6.0)*dxt + ddxf*togo + (-1.0)*ddxt*togo)) + pow(t, 4.0)*togo*((-30.0)*xf + 30*xt + togo*(14*dxf + 16*dxt + (-2.0)*ddxf*togo + 3*ddxt*togo)));
-  *xd_next = 0.5*pow(togo, (-5.0))*(2*dxt*pow(togo, 5.0) + 2*t*ddxt*pow(togo, 5.0) + 3*pow(t, 2.0)*pow(togo, 2.0)*(20*xf + (-20.0)*xt + togo*((-8.0)*dxf + (-12.0)*dxt + ddxf*togo + (-3.0)*ddxt*togo)) + 5*pow(t, 4.0)*(12*xf + (-12.0)*xt + togo*((-6.0)*dxf + (-6.0)*dxt + ddxf*togo + (-1.0)*ddxt*togo)) + 4*pow(t, 3.0)*togo*((-30.0)*xf + 30*xt + togo*(14*dxf + 16*dxt + (-2.0)*ddxf*togo + 3*ddxt*togo)));
-  *xdd_next = 0.5*pow(togo, (-5.0))*(2*ddxt*pow(togo, 5.0) + 6*t*pow(togo, 2.0)*(20*xf + (-20.0)*xt + togo*((-8.0)*dxf + (-12.0)*dxt + ddxf*togo + (-3.0)*ddxt*togo)) + 20*pow(t, 3.0)*(12*xf + (-12.0)*xt + togo*((-6.0)*dxf + (-6.0)*dxt + ddxf*togo + (-1.0)*ddxt*togo)) + 12*pow(t, 2.0)*togo*((-30.0)*xf + 30*xt + togo*(14*dxf + 16*dxt + (-2.0)*ddxf*togo + 3*ddxt*togo)));
-  return TRUE;
+    *x_next = 0.5*pow(togo, -5.0)*(2*xt*pow(togo, 5.0) + 2*t*dxt*pow(togo, 5.0) + pow(t, 2.0)*ddxt*pow(togo, 5.0) + pow(t, 3.0)*pow(togo, 2.0)*(20*xf + (-20.0)*xt + togo*((-8.0)*dxf + (-12.0)*dxt + ddxf*togo + (-3.0)*ddxt*togo)) + pow(t, 5.0)*(12*xf + (-12.0)*xt + togo*((-6.0)*dxf + (-6.0)*dxt + ddxf*togo + (-1.0)*ddxt*togo)) + pow(t, 4.0)*togo*((-30.0)*xf + 30*xt + togo*(14*dxf + 16*dxt + (-2.0)*ddxf*togo + 3*ddxt*togo)));
+    *xd_next = 0.5*pow(togo, (-5.0))*(2*dxt*pow(togo, 5.0) + 2*t*ddxt*pow(togo, 5.0) + 3*pow(t, 2.0)*pow(togo, 2.0)*(20*xf + (-20.0)*xt + togo*((-8.0)*dxf + (-12.0)*dxt + ddxf*togo + (-3.0)*ddxt*togo)) + 5*pow(t, 4.0)*(12*xf + (-12.0)*xt + togo*((-6.0)*dxf + (-6.0)*dxt + ddxf*togo + (-1.0)*ddxt*togo)) + 4*pow(t, 3.0)*togo*((-30.0)*xf + 30*xt + togo*(14*dxf + 16*dxt + (-2.0)*ddxf*togo + 3*ddxt*togo)));
+    *xdd_next = 0.5*pow(togo, (-5.0))*(2*ddxt*pow(togo, 5.0) + 6*t*pow(togo, 2.0)*(20*xf + (-20.0)*xt + togo*((-8.0)*dxf + (-12.0)*dxt + ddxf*togo + (-3.0)*ddxt*togo)) + 20*pow(t, 3.0)*(12*xf + (-12.0)*xt + togo*((-6.0)*dxf + (-6.0)*dxt + ddxf*togo + (-1.0)*ddxt*togo)) + 12*pow(t, 2.0)*togo*((-30.0)*xf + 30*xt + togo*(14*dxf + 16*dxt + (-2.0)*ddxf*togo + 3*ddxt*togo)));
+    return TRUE;
 }
 
 // declare with C linkage
 extern "C" void add_shift_task()
 {
-  int i, j;
-  static int firsttime = TRUE;
+    static int firsttime = TRUE;
 
-  if (firsttime) {
-    firsttime = FALSE;
+    if (firsttime) {
+        firsttime = FALSE;
 
-    addTask("Shift Task", init_shift_task,
-      run_shift_task, change_shift_task);
-  }
-
+        addTask("Shift Task", init_shift_task,
+            run_shift_task, change_shift_task);
+    }
 }
