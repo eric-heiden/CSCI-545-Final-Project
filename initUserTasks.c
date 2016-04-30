@@ -51,8 +51,6 @@ Paramters:  (i/o = input/output)
 void
 initUserTasks(void)
 {
-
-  extern void add_sample_task();
   extern void add_balance_task();
   extern void add_shift_task();
   extern void add_step_aerobic_task();
@@ -63,7 +61,6 @@ initUserTasks(void)
   toggleSimulatedBaseState();
   changeRealTime(TRUE);
 
-  add_sample_task();
   add_balance_task();
   add_shift_task();
   add_step_aerobic_task();

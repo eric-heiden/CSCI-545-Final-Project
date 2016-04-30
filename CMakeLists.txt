@@ -43,10 +43,7 @@ include_directories(BEFORE ../src)
 
 set(SRCS_XTASK
 	initUserTasks.c
-	sample_task.c 
-	sample_task_cpp.cpp
-	min_jerk_task.cpp
-        balance_task.cpp
+    balance_task.cpp
 	shift_task.cpp
 	step_aerobic_task.cpp
 	)
