@@ -1,3 +1,5 @@
+#ifndef STEPSEQUENCE_H
+#define STEPSEQUENCE_H
 #include <vector>
 
 typedef void (*AssignFunctionPtr)(void);
@@ -152,3 +154,5 @@ private:
     std::vector<Runnable*> _steps;
     std::vector<Runnable*>::iterator _active;
 };
+
+#endif // STEPSEQUENCE_H

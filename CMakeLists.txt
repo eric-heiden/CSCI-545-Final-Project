@@ -44,9 +44,10 @@ include_directories(BEFORE ../src)
 set(SRCS_XTASK
 	initUserTasks.c
 	stepsequence.hpp
-    balance_task.cpp
+    	balance_task.cpp
 	shift_task.cpp
 	step_aerobic_task.cpp
+	helper.hpp
 	)
 
 set(SRCS_XOPENGL
