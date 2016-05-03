@@ -153,7 +153,8 @@ static void step_min_jerk_jointspace(double time_to_go)
  *                              Inverse Kinematics                                  *
  ************************************************************************************/
 
-static void set_ik_target(int foot)
+static void set_ik_target(int foot, double xfactor = 0.7,
+                          bool leftFootOnGround = true, bool rightFootOnGround = true)
 {
     // set target to move center of gravity over right foot
     for (int i=_X_; i <= _Z_; ++i)
@@ -161,7 +162,7 @@ static void set_ik_target(int foot)
         cog_target.x[i] = cart_des_state[foot].x[i];
     }
     cog_target.x[_Y_] += 0.01;
-    cog_target.x[_X_] *= 0.7;
+    cog_target.x[_X_] *= xfactor;
 
     // the structure cog_des has the current position of the COG computed from the
     // joint_des_state of the robot. cog_des should track cog_traj
@@ -173,8 +174,8 @@ static void set_ik_target(int foot)
     // `stat` tells the COG IK function that the feet are planted on the ground
     for (int i=1; i<=6; ++i)
     {
-        stat[RIGHT_FOOT][i] = TRUE;
-        stat[LEFT_FOOT][i] = TRUE;
+        stat[RIGHT_FOOT][i] = rightFootOnGround ? TRUE : FALSE;
+        stat[LEFT_FOOT][i] = leftFootOnGround ? TRUE : FALSE;
     }
 }
 

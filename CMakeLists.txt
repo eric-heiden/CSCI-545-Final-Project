@@ -47,6 +47,7 @@ set(SRCS_XTASK
     	balance_task.cpp
 	shift_task.cpp
 	step_aerobic_task.cpp
+	walking_task.cpp
 	helper.hpp
 	)
 

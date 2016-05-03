@@ -54,6 +54,7 @@ initUserTasks(void)
   extern void add_balance_task();
   extern void add_shift_task();
   extern void add_step_aerobic_task();
+  extern void add_walking_task();
 
   freezeBase(TRUE);
 
@@ -64,6 +65,7 @@ initUserTasks(void)
   add_balance_task();
   add_shift_task();
   add_step_aerobic_task();
+  add_walking_task();
 
   if (!real_robot_flag)
     sprintf(initial_user_command,"go0");
