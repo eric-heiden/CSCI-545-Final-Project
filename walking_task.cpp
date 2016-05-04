@@ -18,7 +18,7 @@
 #include "SL_man.h"
 
 #define ENDEFF_IK 0
-#define SIMULATION 0
+#define SIMULATION 1
 
 //static Joints pose_left_forward;
 //static Joints pose_left_down;
@@ -35,6 +35,16 @@ const double footLiftMultiplier = 1.0;
 
 namespace walking
 {
+    void cogRight()
+    {
+        set_ik_target(RIGHT_FOOT);
+    }
+
+    void cogLeft()
+    {
+        set_ik_target(LEFT_FOOT);
+    }
+
     void slight_crouch()
     {
         // copy the default pose into our struct to make it copyable
@@ -65,7 +75,7 @@ namespace walking
 
     void rightForward()
     {
-        target.joints[L_AFE].th = 0.4 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.3 * footLiftMultiplier;
         target.joints[L_HAA].th = -.2 * footLiftMultiplier;
         target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
         target.joints[R_AAA].th = -0.2 * footLiftMultiplier;
@@ -75,8 +85,46 @@ namespace walking
     {
         target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
         target.joints[R_HAA].th = -.2 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.4 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.37 * footLiftMultiplier;
         target.joints[L_AAA].th = 0.2 * footLiftMultiplier;
+    }
+
+    void leanLeftForward()
+    {
+        target.joints[L_FB].th = 0.2 * footLiftMultiplier;
+        target.joints[R_FB].th = -.2 * footLiftMultiplier;
+        target.joints[R_AFE].th = 0.45 * footLiftMultiplier;
+
+        target.joints[R_HFE].th = target.joints[L_HFE].th = 0.27;
+    }
+
+    void leanLeftForward2()
+    {
+        target.joints[R_AFE].th = 0.60 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.20 * footLiftMultiplier;
+
+        target.joints[L_KFE].th = 0.35;
+        target.joints[R_KFE].th = 0.85;
+
+        target.joints[R_AAA].th = -0.1 * footLiftMultiplier;
+
+        target.joints[L_HAA].th = -.1 * footLiftMultiplier;
+        target.joints[R_HAA].th = -.2 * footLiftMultiplier;
+    }
+
+    void stabilizeLeft()
+    {
+        target.joints[R_AFE].th = 0.20 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.30 * footLiftMultiplier;
+
+        target.joints[L_HAA].th = 0.0 * footLiftMultiplier;
+        target.joints[R_HAA].th = 0.0 * footLiftMultiplier;
+
+        target.joints[L_FB].th = 0.1 * footLiftMultiplier;
+        target.joints[R_FB].th = -.1 * footLiftMultiplier;
+
+        target.joints[L_KFE].th = 0.35;
+        target.joints[R_KFE].th = 0.85;
     }
 
     void liftLeftFoot()
@@ -90,7 +138,7 @@ namespace walking
 
         target.copyFrom(joint_des_state);
         target.joints[R_HAA].th = -.2 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.4 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.3 * footLiftMultiplier;
         target.joints[L_AAA].th = 0.2 * footLiftMultiplier;
     }
 
@@ -125,14 +173,17 @@ static int init_walking_task(void)
 
 
     // all in joint space
-    StepSequence *jointLoop = new StepSequence(true); // cycle
-    jointLoop->add(new Step("Lean Right", &walking::leanRight, &step_min_jerk_jointspace, duration, delta_t));
+    StepSequence *jointLoop = new StepSequence(false); // cycle
+    jointLoop->add(new Step("COG Right", &walking::cogRight, &step_cog_ik, duration, delta_t));
     jointLoop->add(new Step("Lift Left Foot", &walking::liftLeftFoot, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Left Forward", &walking::leftForward, &step_min_jerk_jointspace, duration/2, delta_t));
-    jointLoop->add(new Step("Relax", &walking::liftLeftFoot, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Lean Left Forward", &walking::leanLeftForward, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Lean Left Forward 2", &walking::leanLeftForward2, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Stabilize Left", &walking::stabilizeLeft, &step_min_jerk_jointspace, duration/2, delta_t));
+    /*jointLoop->add(new Step("Relax", &walking::liftLeftFoot, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Lean Left", &walking::leanLeft, &step_min_jerk_jointspace, duration, delta_t));
     jointLoop->add(new Step("Lift Right Foot", &walking::liftRightFoot, &step_min_jerk_jointspace, duration/2, delta_t));
-    jointLoop->add(new Step("Right Forward", &walking::rightForward, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Right Forward", &walking::rightForward, &step_min_jerk_jointspace, duration/2, delta_t));*/
 
     sequence.add(jointLoop);
 

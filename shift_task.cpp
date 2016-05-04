@@ -18,7 +18,7 @@
 #include "SL_man.h"
 
 #define ENDEFF_IK 0
-#define SIMULATION 1
+#define SIMULATION 0
 
 // local variables
 static double delta_t = 0.01;
@@ -89,13 +89,13 @@ static int init_shift_task(void)
     // define steps
     sequence.add(new Step("Crouch", &crouch, &step_min_jerk_jointspace, duration, delta_t));
     sequence.add(new Step("Raise Right Arm", &shift::raiseRightArm, &step_min_jerk_jointspace, duration/2, delta_t));
-    sequence.add(new Step("COG Right", &shift::cogRight, &step_cog_ik, duration/2, delta_t));
+    sequence.add(new Step("COG Right", &shift::cogRight, &step_cog_ik, duration, delta_t));
     sequence.add(new Step("Raise Left Arm", &shift::raiseLeftArm, &step_min_jerk_jointspace, duration/2, delta_t));
-    sequence.add(new Step("COG Left", &shift::cogLeft, &step_cog_ik, duration/2, delta_t));
+    sequence.add(new Step("COG Left", &shift::cogLeft, &step_cog_ik, duration, delta_t));
 
     StepSequence *jointLoop = new StepSequence(true); // cycle
-    jointLoop->add(new Step("Joint COG Right", &shift::jointCogRight, &step_min_jerk_jointspace, duration/2, delta_t));
-    jointLoop->add(new Step("Joint COG Left", &shift::jointCogLeft, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Joint COG Right", &shift::jointCogRight, &step_min_jerk_jointspace, duration, delta_t));
+    jointLoop->add(new Step("Joint COG Left", &shift::jointCogLeft, &step_min_jerk_jointspace, duration, delta_t));
     sequence.add(jointLoop);
 
     sequence.initialize();
