@@ -37,13 +37,28 @@ namespace walking
 {
     void cogRight()
     {
-        set_ik_target(RIGHT_FOOT);
+        static bool firstRun = true;
+        if (firstRun)
+        {
+            set_ik_target(RIGHT_FOOT, 0.7);
+            firstRun = false;
+        }
+        else
+            set_ik_target(RIGHT_FOOT, 0.7, 0.05);
+    }
+
+    void cogLeftFarOut()
+    {
+        set_ik_target(LEFT_FOOT, 1.05, 0.05);
+        //target = pose_cog_right;
+        //mirror_target();
     }
 
     void cogLeft()
     {
         set_ik_target(LEFT_FOOT);
     }
+
 
     void slight_crouch()
     {
@@ -85,7 +100,7 @@ namespace walking
     {
         target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
         target.joints[R_HAA].th = -.2 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.37 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.4 * footLiftMultiplier;
         target.joints[L_AAA].th = 0.2 * footLiftMultiplier;
     }
 
@@ -95,36 +110,133 @@ namespace walking
         target.joints[R_FB].th = -.2 * footLiftMultiplier;
         target.joints[R_AFE].th = 0.45 * footLiftMultiplier;
 
-        target.joints[R_HFE].th = target.joints[L_HFE].th = 0.27;
+        target.joints[L_AFE].th = 0.2 * footLiftMultiplier;
+
+        target.joints[R_HFE].th = target.joints[L_HFE].th = 0.3;
+    }
+
+    void leanRightForward()
+    {
+        target.joints[R_FB].th = 0.2 * footLiftMultiplier;
+        target.joints[L_FB].th = -.2 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.37 * footLiftMultiplier;
+
+        target.joints[R_AFE].th = 0.2 * footLiftMultiplier;
+
+        target.joints[R_HFE].th = target.joints[L_HFE].th = 0.3;
     }
 
     void leanLeftForward2()
     {
-        target.joints[R_AFE].th = 0.60 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.20 * footLiftMultiplier;
+        target.joints[R_HFE].th = target.joints[L_HFE].th = 0.32;
+
+        target.joints[L_AFE].th = 0.0 * footLiftMultiplier;
+        target.joints[R_AFE].th = 0.65 * footLiftMultiplier;
 
         target.joints[L_KFE].th = 0.35;
         target.joints[R_KFE].th = 0.85;
 
         target.joints[R_AAA].th = -0.1 * footLiftMultiplier;
 
-        target.joints[L_HAA].th = -.1 * footLiftMultiplier;
-        target.joints[R_HAA].th = -.2 * footLiftMultiplier;
+        //target.joints[L_HAA].th = -.1 * footLiftMultiplier;
+        //target.joints[R_HAA].th = -.2 * footLiftMultiplier;
+
+        target.joints[L_FB].th = 0 * footLiftMultiplier;
+        target.joints[R_FB].th = 0 * footLiftMultiplier;
+    }
+
+    void leanRightForward2()
+    {
+        target.joints[R_HFE].th = target.joints[L_HFE].th = 0.32;
+
+        target.joints[R_AFE].th = 0.0 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.65 * footLiftMultiplier;
+
+        target.joints[R_KFE].th = 0.35;
+        target.joints[L_KFE].th = 0.85;
+
+        target.joints[L_AAA].th = -0.1 * footLiftMultiplier;
+
+        target.joints[R_HAA].th = -.1 * footLiftMultiplier;
+        target.joints[L_HAA].th = -.2 * footLiftMultiplier;
+
+        target.joints[L_FB].th = 0 * footLiftMultiplier;
+        target.joints[R_FB].th = 0 * footLiftMultiplier;
     }
 
     void stabilizeLeft()
     {
-        target.joints[R_AFE].th = 0.20 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.30 * footLiftMultiplier;
+        target.joints[L_HAA].th = 0 * footLiftMultiplier;
+        target.joints[R_HAA].th = 0 * footLiftMultiplier;
 
-        target.joints[L_HAA].th = 0.0 * footLiftMultiplier;
-        target.joints[R_HAA].th = 0.0 * footLiftMultiplier;
 
-        target.joints[L_FB].th = 0.1 * footLiftMultiplier;
-        target.joints[R_FB].th = -.1 * footLiftMultiplier;
+       // target.joints[R_HFE].th = target.joints[L_HFE].th = 0.3;
 
-        target.joints[L_KFE].th = 0.35;
-        target.joints[R_KFE].th = 0.85;
+        //target.joints[R_AFE].th = 0.6 * footLiftMultiplier;
+        //target.joints[L_AFE].th = 0.15 * footLiftMultiplier;
+
+        //target.joints[L_HAA].th = 0.1 * footLiftMultiplier;
+        //target.joints[R_HAA].th = -.1 * footLiftMultiplier;
+
+        //target.joints[L_AAA].th = -.1 * footLiftMultiplier;
+        //target.joints[R_AAA].th = -.1 * footLiftMultiplier;
+
+
+        //target.joints[L_KFE].th = 0.35;
+        //target.joints[R_KFE].th = 0.75;
+    }
+
+    void stabilizeRight()
+    {
+        target.joints[L_HAA].th = 0 * footLiftMultiplier;
+        target.joints[R_HAA].th = 0 * footLiftMultiplier;
+       // target.joints[R_HFE].th = target.joints[L_HFE].th = 0.3;
+
+        //target.joints[R_AFE].th = 0.6 * footLiftMultiplier;
+        //target.joints[L_AFE].th = 0.15 * footLiftMultiplier;
+
+        //target.joints[L_HAA].th = 0.1 * footLiftMultiplier;
+        //target.joints[R_HAA].th = -.1 * footLiftMultiplier;
+
+        //target.joints[L_AAA].th = -.1 * footLiftMultiplier;
+        //target.joints[R_AAA].th = -.1 * footLiftMultiplier;
+
+
+        //target.joints[L_KFE].th = 0.35;
+        //target.joints[R_KFE].th = 0.75;
+    }
+
+    void stabilizeBeforeRight()
+    {
+        target.joints[R_HFE].th = 0.25;
+        target.joints[R_KFE].th = 0.56;
+
+        target.joints[L_AFE].th = 0.16;
+
+        target.joints[R_AFE].th = 0.43;
+
+        target.joints[R_AAA].th = -.31;
+
+        target.joints[L_HFE].th = 0.30;
+        target.joints[L_KFE].th = 0.60;
+        target.joints[L_AFE].th = 0.30;
+
+        //target.joints[L_AAA] = joint_default_state[L_AAA];
+
+       // target.joints[R_HFE].th = target.joints[L_HFE].th = 0.3;
+
+        //target.joints[R_AFE].th = 0.6 * footLiftMultiplier;
+        //target.joints[L_AFE].th = 0.15 * footLiftMultiplier;
+
+        //target.joints[L_HAA].th = 0.1 * footLiftMultiplier;
+        //target.joints[R_HAA].th = -.1 * footLiftMultiplier;
+
+        //target.joints[L_AAA].th = -.1 * footLiftMultiplier;
+        //target.joints[R_AAA].th = -.1 * footLiftMultiplier;
+
+
+        //target.joints[L_KFE].th = 0.35;
+        //target.joints[R_KFE].th = 0.75;
     }
 
     void liftLeftFoot()
@@ -152,9 +264,13 @@ namespace walking
         }
 
         target.copyFrom(joint_des_state);
-        target.joints[L_HAA].th = -.2 * footLiftMultiplier;
-        target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
-        target.joints[R_AAA].th = -0.2 * footLiftMultiplier;
+        //target.joints[L_HAA].th = -.2 * footLiftMultiplier;
+        //target.joints[R_AFE].th = 0.3 * footLiftMultiplier;
+        //target.joints[R_AAA].th = -0.37 * footLiftMultiplier;
+
+        target.joints[R_HFE].th = 0.50;
+        target.joints[R_KFE].th = 1.00;
+        target.joints[R_AFE].th = 0.50;
     }
 }
 
@@ -169,17 +285,28 @@ static int init_walking_task(void)
     }
 
     // define steps
-    sequence.add(new Step("Crouch", &walking::slight_crouch, &step_min_jerk_jointspace, duration, delta_t));
+    sequence.add(new Step("Crouch", &walking::slight_crouch, &step_min_jerk_jointspace, duration/2, delta_t));
 
 
     // all in joint space
-    StepSequence *jointLoop = new StepSequence(false); // cycle
+    StepSequence *jointLoop = new StepSequence(true); // cycle
     jointLoop->add(new Step("COG Right", &walking::cogRight, &step_cog_ik, duration, delta_t));
     jointLoop->add(new Step("Lift Left Foot", &walking::liftLeftFoot, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Left Forward", &walking::leftForward, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Lean Left Forward", &walking::leanLeftForward, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Lean Left Forward 2", &walking::leanLeftForward2, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Stabilize Left", &walking::stabilizeLeft, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("COG Left", &walking::cogLeftFarOut, &step_cog_ik, duration, delta_t));
+
+    jointLoop->add(new Step("Stabilize Before Right", &walking::stabilizeBeforeRight, &step_min_jerk_jointspace, duration, delta_t));
+    //jointLoop->add(new Step("Slight Crouch", &walking::slight_crouch, &step_min_jerk_jointspace, duration, delta_t));
+    //jointLoop->add(new Step("COG Left", &walking::cogLeft, &step_cog_ik, duration, delta_t));
+
+    jointLoop->add(new Step("Lift Right Foot", &walking::liftRightFoot, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Right Forward", &walking::rightForward, &step_min_jerk_jointspace, duration, delta_t));
+    jointLoop->add(new Step("Lean Right Forward", &walking::leanRightForward, &step_min_jerk_jointspace, duration, delta_t));
+    jointLoop->add(new Step("Lean Right Forward 2", &walking::leanRightForward2, &step_min_jerk_jointspace, duration/2, delta_t));
+    jointLoop->add(new Step("Stabilize Right", &walking::stabilizeRight, &step_min_jerk_jointspace, duration/2, delta_t));
     /*jointLoop->add(new Step("Relax", &walking::liftLeftFoot, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Lean Left", &walking::leanLeft, &step_min_jerk_jointspace, duration, delta_t));
     jointLoop->add(new Step("Lift Right Foot", &walking::liftRightFoot, &step_min_jerk_jointspace, duration/2, delta_t));

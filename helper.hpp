@@ -1,11 +1,11 @@
 #ifndef HELPER_H
 #define HELPER_H
 
-#if SIMULATION
+//#if SIMULATION
 #define SIM_LOG(message) std::cout << message << std::endl;
-#else
-#define SIM_LOG(message)
-#endif
+//#else
+//#define SIM_LOG(message)
+//#endif
 
 struct Joints
 {
@@ -153,7 +153,7 @@ static void step_min_jerk_jointspace(double time_to_go)
  *                              Inverse Kinematics                                  *
  ************************************************************************************/
 
-static void set_ik_target(int foot, double xfactor = 0.7,
+static void set_ik_target(int foot, double xfactor = 0.7, double yoffset = 0.01,
                           bool leftFootOnGround = true, bool rightFootOnGround = true)
 {
     // set target to move center of gravity over right foot
@@ -161,7 +161,7 @@ static void set_ik_target(int foot, double xfactor = 0.7,
     {
         cog_target.x[i] = cart_des_state[foot].x[i];
     }
-    cog_target.x[_Y_] += 0.01;
+    cog_target.x[_Y_] += yoffset;
     cog_target.x[_X_] *= xfactor;
 
     // the structure cog_des has the current position of the COG computed from the
@@ -254,6 +254,17 @@ static void lower_arm_target(Side side)
     int const shift = (side == Left) ? (L_HFE - R_HFE) : 0;
     target.joints[R_SAA + shift].th = joint_default_state[R_SAA + shift].th;
     target.joints[R_HR + shift].th  = joint_default_state[R_HR + shift].th;
+}
+
+static void mirror_target()
+{
+    for (int i = R_FB; i <= R_AAA; ++i)
+    {
+        SL_DJstate temp = target.joints[i];
+        target.joints[i] = target.joints[i+6];
+        target.joints[i+6] = temp;
+    }
+    target.joints[R_AAA].th *= -1.0;
 }
 
 #endif // HELPER_H
