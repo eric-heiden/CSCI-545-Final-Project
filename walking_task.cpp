@@ -49,7 +49,7 @@ namespace walking
 
     void cogLeftFarOut()
     {
-        set_ik_target(LEFT_FOOT, 1.05, 0.05);
+        set_ik_target(LEFT_FOOT, 1.05, 0.02);
         //target = pose_cog_right;
         //mirror_target();
     }
@@ -88,27 +88,38 @@ namespace walking
 
     }
 
-    void rightForward()
-    {
-        target.joints[L_AFE].th = 0.3 * footLiftMultiplier;
-        target.joints[L_HAA].th = -.2 * footLiftMultiplier;
-        target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
-        target.joints[R_AAA].th = -0.2 * footLiftMultiplier;
-    }
-
     void leftForward()
     {
         target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
-        target.joints[R_HAA].th = -.2 * footLiftMultiplier;
+        //target.joints[R_HAA].th = -.2 * footLiftMultiplier;
         target.joints[L_AFE].th = 0.4 * footLiftMultiplier;
         target.joints[L_AAA].th = 0.2 * footLiftMultiplier;
     }
 
+    void rightForward()
+    {
+        target.joints[L_AFE].th = 0.4 * footLiftMultiplier;
+        //target.joints[L_HAA].th = -.2 * footLiftMultiplier;
+        target.joints[R_AFE].th = 0.4 * footLiftMultiplier;
+        target.joints[R_AAA].th = -0.35 * footLiftMultiplier;
+
+        target.joints[R_HFE].th = 0.80;
+        target.joints[R_KFE].th = 0.80;
+    }
+
     void leanLeftForward()
     {
+        static bool firstRun = true;
+
         target.joints[L_FB].th = 0.2 * footLiftMultiplier;
         target.joints[R_FB].th = -.2 * footLiftMultiplier;
-        target.joints[R_AFE].th = 0.45 * footLiftMultiplier;
+        if (firstRun)
+        {
+            target.joints[R_AFE].th = 0.45 * footLiftMultiplier;
+            firstRun = false;
+        }
+        else
+            target.joints[R_AFE].th = 0.3 * footLiftMultiplier;
 
         target.joints[L_AFE].th = 0.2 * footLiftMultiplier;
 
@@ -121,7 +132,7 @@ namespace walking
         target.joints[L_FB].th = -.2 * footLiftMultiplier;
         target.joints[L_AFE].th = 0.37 * footLiftMultiplier;
 
-        target.joints[R_AFE].th = 0.2 * footLiftMultiplier;
+        target.joints[R_AFE].th = 0.25 * footLiftMultiplier;
 
         target.joints[R_HFE].th = target.joints[L_HFE].th = 0.3;
     }
@@ -150,10 +161,10 @@ namespace walking
         target.joints[R_HFE].th = target.joints[L_HFE].th = 0.32;
 
         target.joints[R_AFE].th = 0.0 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.65 * footLiftMultiplier;
+        target.joints[L_AFE].th = 0.55 * footLiftMultiplier;
 
-        target.joints[R_KFE].th = 0.35;
-        target.joints[L_KFE].th = 0.85;
+        target.joints[R_KFE].th = 0.55;
+        target.joints[L_KFE].th = 0.75;
 
         target.joints[L_AAA].th = -0.1 * footLiftMultiplier;
 
@@ -246,12 +257,19 @@ namespace walking
         {
             firstRun = false;
             pose_cog_right = target;
-        }
 
-        target.copyFrom(joint_des_state);
-        target.joints[R_HAA].th = -.2 * footLiftMultiplier;
-        target.joints[L_AFE].th = 0.3 * footLiftMultiplier;
-        target.joints[L_AAA].th = 0.2 * footLiftMultiplier;
+            target.copyFrom(joint_des_state);
+            target.joints[R_HAA].th = -.2 * footLiftMultiplier;
+            target.joints[L_AFE].th = 0.3 * footLiftMultiplier;
+            target.joints[L_AAA].th = 0.2 * footLiftMultiplier;
+        }
+        else
+        {
+            target.joints[R_HAA].th = -.07 * footLiftMultiplier;
+            target.joints[L_HFE].th = 0.50;
+            target.joints[L_KFE].th = 1.00;
+            target.joints[L_AFE].th = 0.50;
+        }
     }
 
     void liftRightFoot()
@@ -264,7 +282,7 @@ namespace walking
         }
 
         target.copyFrom(joint_des_state);
-        //target.joints[L_HAA].th = -.2 * footLiftMultiplier;
+        target.joints[L_HAA].th = -.07 * footLiftMultiplier;
         //target.joints[R_AFE].th = 0.3 * footLiftMultiplier;
         //target.joints[R_AAA].th = -0.37 * footLiftMultiplier;
 
@@ -289,7 +307,7 @@ static int init_walking_task(void)
 
 
     // all in joint space
-    StepSequence *jointLoop = new StepSequence(true); // cycle
+    StepSequence *jointLoop = new StepSequence(false); // cycle
     jointLoop->add(new Step("COG Right", &walking::cogRight, &step_cog_ik, duration, delta_t));
     jointLoop->add(new Step("Lift Left Foot", &walking::liftLeftFoot, &step_min_jerk_jointspace, duration/2, delta_t));
     jointLoop->add(new Step("Left Forward", &walking::leftForward, &step_min_jerk_jointspace, duration/2, delta_t));
